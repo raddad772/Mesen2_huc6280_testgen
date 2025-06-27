@@ -15,7 +15,7 @@ class PceMemoryManager;
 
 class PceCpu final : public ISerializable
 {
-private:
+public:
 	static constexpr uint16_t ResetVector = 0xFFFE;
 	static constexpr uint16_t NmiVector = 0xFFFC;
 	static constexpr uint16_t TimerIrqVector = 0xFFFA;
@@ -42,7 +42,7 @@ private:
 	uint8_t _pendingIrqs = 0;
 	PceAddrMode _instAddrMode;
 
-private:
+//private:
 	void WriteMemoryModeValue(uint8_t value);
 	void AND();
 	void EOR();

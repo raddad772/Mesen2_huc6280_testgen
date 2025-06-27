@@ -93,9 +93,9 @@ PceCpu::PceCpu(Emulator* emu, PceMemoryManager* memoryManager)
 
 void PceCpu::Exec()
 {
-#ifndef DUMMYCPU
+/*#ifndef DUMMYCPU
 	_emu->ProcessInstruction<CpuType::Pce>();
-#endif
+#endif*/
 
 	//T flag is reset at the start of each instruction
 	_memoryFlag = CheckFlag(PceCpuFlags::Memory);
@@ -106,9 +106,9 @@ void PceCpu::Exec()
 	FetchOperand();
 	(this->*_opTable[opCode])();
 
-	if(_pendingIrqs || _memoryManager->HasIrqSource(PceIrqSource::TimerIrq)) {
+	/*if(_pendingIrqs || _memoryManager->HasIrqSource(PceIrqSource::TimerIrq)) {
 		ProcessIrq(false);
-	}
+	}*/
 }
 
 void PceCpu::FetchOperand()

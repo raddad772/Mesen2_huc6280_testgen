@@ -21,10 +21,16 @@
 #include "Utilities/CRC32.h"
 #include "Shared/MemoryType.h"
 #include "Shared/FirmwareHelper.h"
+#include "generate_tests.h"
+
+#undef printf
+#include <printf.h>
 
 PceConsole::PceConsole(Emulator* emu)
 {
 	_emu = emu;
+    printf("\nGOT HERE1!");
+
 }
 
 PceConsole::~PceConsole()
@@ -34,11 +40,15 @@ PceConsole::~PceConsole()
 void PceConsole::Reset()
 {
 	//The PC Engine has no reset button, behave like power cycle
+    printf("\nGOT HERE2!");
 	_emu->ReloadRom(true);
 }
 
 LoadRomResult PceConsole::LoadRom(VirtualFile& romFile)
 {
+    printf("\nGOT HERE3!");
+
+
 	PcEngineConfig& cfg = _emu->GetSettings()->GetPcEngineConfig();
 	PceConsoleType consoleType = cfg.ConsoleType;
 
@@ -124,7 +134,9 @@ LoadRomResult PceConsole::LoadRom(VirtualFile& romFile)
 	_timer.reset(new PceTimer(this));
 	_psg.reset(new PcePsg(_emu, this));
 	_memoryManager.reset(new PceMemoryManager(_emu, this, _vpc.get(), _vce.get(), _controlManager.get(), _psg.get(), _timer.get(), _mapper.get(), _cdrom.get(), romData, cardRamSize, cdromUnitEnabled));
-	_cpu.reset(new PceCpu(_emu, _memoryManager.get()));
+    _cpu.reset(new PceCpu(_emu, _memoryManager.get()));
+
+    generate_tests(*_cpu);
 
 	if(_hesData) {
 		InitHesPlayback(_hesData->CurrentTrack);
@@ -139,6 +151,7 @@ LoadRomResult PceConsole::LoadRom(VirtualFile& romFile)
 
 bool PceConsole::LoadFirmware(DiscInfo& disc, vector<uint8_t>& romData)
 {
+    printf("\nGOT HERE4!");
 	if(disc.Tracks[0].Format != TrackFormat::Audio) {
 		//All Games Express discs have these 8 bytes at the start of sector 0x10 (which is the first sector read by the firmware)
 		constexpr uint8_t signature[8] { 0x01, 0x43, 0x44, 0x30, 0x30, 0x31, 0x01, 0x00 };

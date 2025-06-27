@@ -448,3 +448,53 @@ void PceMemoryManager::Serialize(Serializer& s)
 		UpdateExecCallback();
 	}
 }
+
+void test_do_write(uint16_t addr, uint8_t value, MemoryOperationType type);
+uint8_t test_do_read(uint16_t addr, MemoryOperationType type);
+
+uint8_t PceMemoryManager::Read(uint16_t addr, MemoryOperationType type)
+{
+    return test_do_read(addr, type);
+    uint8_t bank = _state.Mpr[(addr & 0xE000) >> 13];
+    uint8_t value;
+    if(bank != 0xFF) {
+        value = _readBanks[bank][addr & 0x1FFF];
+    } else {
+        value = ReadRegister(addr & 0x1FFF);
+    }
+
+    if(_mapper && _mapper->IsBankMapped(bank)) {
+        value = _mapper->Read(bank, addr, value);
+    }
+
+    if(_cheatManager->HasCheats<CpuType::Pce>()) {
+        _cheatManager->ApplyCheat<CpuType::Pce>((bank << 13) | (addr & 0x1FFF), value);
+    }
+    _emu->ProcessMemoryRead<CpuType::Pce>(addr, value, type);
+    return value;
+}
+
+void PceMemoryManager::Write(uint16_t addr, uint8_t value, MemoryOperationType type)
+{
+    test_do_write(addr, value, type);
+    return;
+    if(_emu->ProcessMemoryWrite<CpuType::Pce>(addr, value, type)) {
+        uint8_t bank = _state.Mpr[(addr & 0xE000) >> 13];
+        if(_mapper && _mapper->IsBankMapped(bank)) {
+            _mapper->Write(bank, addr, value);
+        }
+
+        if(bank == 0xF7) {
+            if(_writeBanks[bank] && (addr & 0x1FFF) <= 0x7FF) {
+                //Only allow writes to the first 2kb - save RAM is not mirrored
+                _writeBanks[bank][addr & 0x7FF] = value;
+            }
+        } else if(bank != 0xFF) {
+            if(_writeBanks[bank]) {
+                _writeBanks[bank][addr & 0x1FFF] = value;
+            }
+        } else {
+            WriteRegister(addr & 0x1FFF, value);
+        }
+    }
+}
