@@ -267,10 +267,12 @@ void PceCpu::SetZeroNegativeFlags(uint8_t value)
 		SetFlags(PceCpuFlags::Negative);
 	}
 }
+void test_do_idle();
 
 void PceCpu::RunIdleCpuCycle()
 {
 	ProcessCpuCycle();
+    test_do_idle();
 }
 
 void PceCpu::ProcessCpuCycle()
