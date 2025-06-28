@@ -736,7 +736,7 @@ void PceCpu::TII()
 	uint16_t length = _operand3;
 
 	do {
-		DummyRead();
+        DummyRead();
 		uint8_t value = MemoryRead(src);
 		DummyRead();
 

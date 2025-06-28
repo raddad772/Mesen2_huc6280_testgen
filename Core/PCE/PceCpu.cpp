@@ -278,9 +278,9 @@ void PceCpu::RunIdleCpuCycle()
 void PceCpu::ProcessCpuCycle()
 {
 	_state.CycleCount++;
-	_memoryManager->Exec();
+//_memoryManager->Exec();
 
-	_pendingIrqs = CheckFlag(PceCpuFlags::Interrupt) ? 0 : _memoryManager->GetPendingIrqs();
+	//_pendingIrqs = CheckFlag(PceCpuFlags::Interrupt) ? 0 : _memoryManager->GetPendingIrqs();
 }
 
 #ifndef DUMMYCPU

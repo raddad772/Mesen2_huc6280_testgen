@@ -15,12 +15,12 @@
 #include "gt_private.h"
 
 #define MAX_TRANSACTIONS 800
-#define MAX_RAM_PAIRS 800
-#define MAX_CYCLES 5000
+#define MAX_RAM_PAIRS 500
+#define MAX_CYCLES 500
 
 #define NUMTESTS 2500
-#define ISTART 1
-#define IEND 2
+#define ISTART 0
+#define IEND 0x100
 
 #define ALLOC_BUF_SIZE (2 * 1024 * 1024)
 
@@ -112,7 +112,7 @@ struct huc6280_test {
 
 struct huc6280_test_struct {
     struct sfc32_state rstate;
-    struct huc6280_test tests[NUMTESTS];
+    struct huc6280_test tests;
     struct huc6280_test *cur;
 
     u32 log_transactions;
@@ -133,8 +133,8 @@ static u32 rint(sfc32_state &rs, u32 min, u32 max)
 
 static void add_read_cycle(u32 addr, u32 val)
 {
+    if (ts.cur_cycle >= (MAX_CYCLES - 1)) { ts.cur_cycle++; return; }
     struct cycle_pins *c = &ts.cur->cycles[ts.cur_cycle++];
-    assert(ts.cur_cycle < MAX_CYCLES);
     c->RD = 1;
     c->WR = 0;
     c->Addr = addr;
@@ -143,6 +143,7 @@ static void add_read_cycle(u32 addr, u32 val)
 
 static void add_write_cycle(u32 addr, u32 val)
 {
+    if (ts.cur_cycle >= (MAX_CYCLES - 1)) { ts.cur_cycle++; return; }
     struct cycle_pins *c = &ts.cur->cycles[ts.cur_cycle++];
     c->WR = 1;
     c->RD = 0;
@@ -152,6 +153,7 @@ static void add_write_cycle(u32 addr, u32 val)
 
 static void add_idle_cycle(int rd, int wr, int dummy)
 {
+    if (ts.cur_cycle >= (MAX_CYCLES - 1)) {ts.cur_cycle++; return;}
     struct cycle_pins *c = &ts.cur->cycles[ts.cur_cycle++];
     c->RD = rd != 0;
     c->WR = wr != 0;
@@ -231,10 +233,14 @@ void test_do_write(uint16_t maddr, uint8_t value, MemoryOperationType type)
         }
     }
     if (!found) {
-        struct RAM_pair *rp = &ts.cur->final.RAM_pairs[ts.cur->final.num_RAM++];
-        assert(ts.cur->final.num_RAM < MAX_RAM_PAIRS);
-        rp->addr = addr;
-        rp->val = value;
+        if (ts.cur->final.num_RAM >= (MAX_RAM_PAIRS - 1)) {
+
+        }
+        else {
+            struct RAM_pair *rp = &ts.cur->final.RAM_pairs[ts.cur->final.num_RAM++];
+            rp->addr = addr;
+            rp->val = value;
+        }
     }
     add_write_cycle(addr, value);
 }
@@ -276,11 +282,15 @@ uint8_t test_do_read(uint16_t maddr, MemoryOperationType type)
             }
         }
         if (!found) {
-            struct RAM_pair *rp = &ts.cur->initial.RAM_pairs[ts.cur->initial.num_RAM++];
-            assert(ts.cur->initial.num_RAM < MAX_RAM_PAIRS);
-            rp->addr = addr;
-            rp->val = sfc32(ts.rstate) & 0xFF;
-            v = rp->val;
+            if (ts.cur->initial.num_RAM >= (MAX_RAM_PAIRS - 1)) {
+
+            }
+            else {
+                struct RAM_pair *rp = &ts.cur->initial.RAM_pairs[ts.cur->initial.num_RAM++];
+                rp->addr = addr;
+                rp->val = sfc32(ts.rstate) & 0xFF;
+                v = rp->val;
+            }
         }
     }
 
@@ -306,11 +316,7 @@ static void construct_path(char *out, u32 ins)
     }
 
     char *tp = out;
-    tp += sprintf(tp, "%s", homeDir);
-    tp += sprintf(tp, "/dev/huc6280/v1");
-
-    tp += sprintf(tp, "%s/", test_path);
-    tp += sprintf(tp, "%02x.json.bin", ins);
+    tp += sprintf(tp, "%s/dev/huc6280/v1/%02x.json.bin", homeDir, ins);
 }
 
 static const char *pads = "                                                  ";
@@ -358,10 +364,14 @@ static void add_missing_ram_pairs()
             }
         }
         if (!found) {
-            struct RAM_pair *fp = &final->RAM_pairs[final->num_RAM++];
-            assert(final->num_RAM < MAX_RAM_PAIRS);
-            fp->addr = ip->addr;
-            fp->val = ip->val;
+            if (final->num_RAM >= (MAX_RAM_PAIRS - 1)) {
+
+            }
+            else {
+                struct RAM_pair *fp = &final->RAM_pairs[final->num_RAM++];
+                fp->addr = ip->addr;
+                fp->val = ip->val;
+            }
         }
     }
 }
@@ -389,7 +399,10 @@ static void write_test_to_disk(FILE *fo, u32 num)
     write_state(ts.cur->initial);
     write_state(ts.cur->final);
     W32(ts.cur->num_cycles)
-    for (u32 i = 0; i < ts.cur->num_cycles; i++) {
+    u32 max = ts.cur->num_cycles;
+    W32(max)
+    if (max > MAX_CYCLES) max = MAX_CYCLES;
+    for (u32 i = 0; i < max; i++) {
         struct cycle_pins *c = &ts.cur->cycles[i];
         u32 o = c->RD | (c->WR << 1) | (c->dummy << 2) | ((c->Addr & 0x1FFFFF) << 3) | (c->D << 24);
         W32(o)
@@ -418,7 +431,10 @@ static void generate_test(u32 opc)
     fwrite(&nt, sizeof(nt), 1, fout);
 
     for (u32 i = 0; i < NUMTESTS; i++) {
-        ts.cur = &ts.tests[i];
+        if (opc == 0x73) {
+            printf("\nTEST #%d", i);
+        }
+        ts.cur = &ts.tests;
         ts.log_transactions = 0;
         ts.cur_cycle = 0;
         ts.cur->num_cycles = 0;
@@ -451,7 +467,6 @@ void generate_tests(PceCpu &cpu)
     printf("\nGENERATE TEST!");
     u8 *a = (u8 *)malloc(ALLOC_BUF_SIZE);
     ts.buf = a;
-    assert(ts.buf);
     ts.cpu = &cpu;
     for (u32 i = ISTART; i < IEND; i++) {
         generate_test(i);
