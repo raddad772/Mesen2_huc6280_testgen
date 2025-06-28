@@ -16,6 +16,8 @@
 
 #define MAX_TRANSACTIONS 800
 #define MAX_RAM_PAIRS 800
+#define MAX_CYCLES 5000
+
 #define NUMTESTS 2500
 #define ISTART 1
 #define IEND 2
@@ -97,8 +99,6 @@ struct huc6280_test_state {
     struct RAM_pair RAM_pairs[MAX_RAM_PAIRS];
 };
 
-#define MAX_CYCLES 5000
-
 struct huc6280_test {
     char name[100];
     u32 opcode;
@@ -134,6 +134,7 @@ static u32 rint(sfc32_state &rs, u32 min, u32 max)
 static void add_read_cycle(u32 addr, u32 val)
 {
     struct cycle_pins *c = &ts.cur->cycles[ts.cur_cycle++];
+    assert(ts.cur_cycle < MAX_CYCLES);
     c->RD = 1;
     c->WR = 0;
     c->Addr = addr;
@@ -225,6 +226,7 @@ void test_do_write(uint16_t maddr, uint8_t value, MemoryOperationType type)
     }
     if (!found) {
         struct RAM_pair *rp = &ts.cur->final.RAM_pairs[ts.cur->final.num_RAM++];
+        assert(ts.cur->final.num_RAM < MAX_RAM_PAIRS);
         rp->addr = addr;
         rp->val = value;
     }
@@ -266,13 +268,14 @@ uint8_t test_do_read(uint16_t maddr, MemoryOperationType type)
         if (!found) {
             printf("\nNOT FOUND %06x", addr);
             struct RAM_pair *rp = &ts.cur->initial.RAM_pairs[ts.cur->initial.num_RAM++];
+            assert(ts.cur->initial.num_RAM < MAX_RAM_PAIRS);
             rp->addr = addr;
             rp->val = sfc32(ts.rstate) & 0xFF;
             v = rp->val;
         }
     }
 
-    printf("\nDO READ ADDR:%06x: %02x", addr, v);
+    //printf("\nDO READ ADDR:%06x: %02x", addr, v);
 
     // a read should be added to initial RAMpairs if not exist
 
@@ -324,11 +327,34 @@ static void write_state(struct huc6280_test_state &st)
     W32(st.num_RAM);
     for (u32 i = 0; i < st.num_RAM; i++) {
         struct RAM_pair *rp = &st.RAM_pairs[i];
-        W16(rp->addr);
+        W32(rp->addr);
         W8(rp->val);
     }
     size_t len = ts.ptr - bufbegin;
     cW32(bufbegin, 0, (u32)len);
+}
+
+static void add_missing_ram_pairs()
+{
+    struct huc6280_test_state *initial = &ts.cur->initial;
+    struct huc6280_test_state *final = &ts.cur->final;
+    for (u32 i = 0; i < initial->num_RAM; i++) {
+        u32 found = 0;
+        struct RAM_pair *ip = &initial->RAM_pairs[i];
+        for (u32 j = 0; j < final->num_RAM; j++) {
+            struct RAM_pair *fp = &final->RAM_pairs[j];
+            if (ip->addr == fp->addr) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) {
+            struct RAM_pair *fp = &final->RAM_pairs[final->num_RAM++];
+            assert(final->num_RAM < MAX_RAM_PAIRS);
+            fp->addr = ip->addr;
+            fp->val = ip->val;
+        }
+    }
 }
 
 static void write_test_to_disk(FILE *fo, u32 num)
@@ -356,7 +382,7 @@ static void write_test_to_disk(FILE *fo, u32 num)
     W32(ts.cur->num_cycles)
     for (u32 i = 0; i < ts.cur->num_cycles; i++) {
         struct cycle_pins *c = &ts.cur->cycles[i];
-        u32 o = c->RD | (c->WR << 1) | (c->Addr << 8) | (c->D << 24);
+        u32 o = c->RD | (c->WR << 1) | ((c->Addr & 0x1FFFFF) << 2) | (c->D << 24);
         W32(o)
     }
     size_t len = ts.ptr - ts.buf;
@@ -404,6 +430,7 @@ static void generate_test(u32 opc)
 
         ts.cur->num_cycles = ts.cur_cycle;
         copy_state_from_cpu(ts.cur->final);
+        add_missing_ram_pairs();
 
         write_test_to_disk(fout, i);
     }
