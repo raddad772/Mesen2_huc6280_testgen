@@ -84,7 +84,7 @@ static void (*cW[9])(void *, u32, u64) = {
 };
 
 struct cycle_pins {
-    u32 RD, WR, Addr, D;
+    u32 RD, WR, Addr, D, dummy;
 };
 
 struct RAM_pair {
@@ -150,10 +150,12 @@ static void add_write_cycle(u32 addr, u32 val)
     c->D = val;
 }
 
-static void add_idle_cycle()
+static void add_idle_cycle(int rd, int wr, int dummy)
 {
     struct cycle_pins *c = &ts.cur->cycles[ts.cur_cycle++];
-    c->RD = c->WR = 0;
+    c->RD = rd != 0;
+    c->WR = wr != 0;
+    c->dummy = dummy != 0;
     c->Addr = -1;
     c->D = -1;
 }
@@ -210,11 +212,15 @@ static u32 get_long_addr(u32 addr)
 
 void test_do_idle()
 {
-    add_idle_cycle();
+    add_idle_cycle(0, 0, 0);
 }
 
 void test_do_write(uint16_t maddr, uint8_t value, MemoryOperationType type)
 {
+    if (type == MemoryOperationType::DummyWrite) {
+        add_idle_cycle(0, 1, 1);
+        return;
+    }
     u32 found = 0;
     u32 addr = get_long_addr(maddr);
     for (u32 i = 0; i < ts.cur->final.num_RAM; i++) {
@@ -235,6 +241,10 @@ void test_do_write(uint16_t maddr, uint8_t value, MemoryOperationType type)
 
 uint8_t test_do_read(uint16_t maddr, MemoryOperationType type)
 {
+    if (type == MemoryOperationType::DummyRead) {
+        add_idle_cycle(1, 0, 1);
+        return 0;
+    }
     static int ignore_reset = 2;
     u32 addr = maddr;
     if (ignore_reset > 0) {
@@ -266,7 +276,6 @@ uint8_t test_do_read(uint16_t maddr, MemoryOperationType type)
             }
         }
         if (!found) {
-            printf("\nNOT FOUND %06x", addr);
             struct RAM_pair *rp = &ts.cur->initial.RAM_pairs[ts.cur->initial.num_RAM++];
             assert(ts.cur->initial.num_RAM < MAX_RAM_PAIRS);
             rp->addr = addr;
@@ -382,7 +391,7 @@ static void write_test_to_disk(FILE *fo, u32 num)
     W32(ts.cur->num_cycles)
     for (u32 i = 0; i < ts.cur->num_cycles; i++) {
         struct cycle_pins *c = &ts.cur->cycles[i];
-        u32 o = c->RD | (c->WR << 1) | ((c->Addr & 0x1FFFFF) << 2) | (c->D << 24);
+        u32 o = c->RD | (c->WR << 1) | (c->dummy << 2) | ((c->Addr & 0x1FFFFF) << 3) | (c->D << 24);
         W32(o)
     }
     size_t len = ts.ptr - ts.buf;
