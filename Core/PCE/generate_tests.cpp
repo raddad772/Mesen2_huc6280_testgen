@@ -410,7 +410,7 @@ static void write_test_to_disk(FILE *fo, u32 num)
     for (u32 i = 0; i < max; i++) {
         struct cycle_pins *c = &ts.cur->cycles[i];
         u32 o = c->RD | (c->WR << 1) | (c->dummy << 2) | ((c->Addr & 0x1FFFFF) << 3) | (c->D << 24);
-        printf("\n#%d: RD:%d WR:%d D:%d OUT:%08x", i, c->RD, c->WR, c->dummy, o);
+        //printf("\n#%d: RD:%d WR:%d D:%d OUT:%08x", i, c->RD, c->WR, c->dummy, o);
         W32(o)
     }
     size_t len = ts.ptr - ts.buf;
