@@ -19,8 +19,8 @@
 #define MAX_CYCLES 500
 
 #define NUMTESTS 2500
-#define ISTART 1
-#define IEND 2
+#define ISTART 0
+#define IEND 0x100
 
 #define ALLOC_BUF_SIZE (2 * 1024 * 1024)
 
@@ -215,13 +215,7 @@ static u32 get_long_addr(u32 maddr)
     u32 addr_lo = addr & 0x1FFF;
     u32 upper13 = ts.cpu->_memoryManager->_state.Mpr[mpr];
 
-    if (addr == 0xdbae) {
-        printf("\nDBAE. MPR:%d VAL:%02x ADDR:%06x", mpr, upper13, upper13 << 13);
-    }
     addr = (upper13 << 13) | addr_lo;
-    if (addr == 0x10E0AE) {
-        printf("\nORIGINAL ADDR: %04x  MPR%d:%02x", maddr, mpr, ts.cpu->_memoryManager->_state.Mpr[mpr]);
-    }
     return addr;
 }
 
